@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحكم VELMORA</title>
+<link rel="manifest" href="manifest-admin.json">
+<meta name="theme-color" content="#0f0f0f">
+<link rel="icon" href="admin-logo.png">
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+*{box-sizing:border-box;font-family:system-ui}body{margin:0;background:#111;color:#fff;padding:15px}h1{color:#d4af37}input,select,textarea{width:100%;padding:10px;margin:5px 0;border-radius:10px;border:1px solid #333;background:#1a1a1a;color:#fff}button{padding:10px 15px;border-radius:10px;border:none;background:#d4af37;font-weight:700;cursor:pointer;margin:3px}.card{background:#1a1a1a;padding:12px;border-radius:12px;margin:8px 0}.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button{background:#222;color:#fff}.tabs button.active{background:#d4af37;color:#000}img{width:80px;height:80px;object-fit:cover;border-radius:10px}.topLogo{width:100%;max-height:220px;object-fit:cover;border-radius:15px;display:block;height:auto}
+#installBtn{display:none;width:100%;background:#fff;color:#000;padding:12px;border-radius:12px;font-weight:800;margin-bottom:10px}
+</style>
+</head>
+<body>
+<img src="admin-logo.png" class="topLogo">
+<h1>VELMORA - لوحة التحكم</h1>
+<button id="installBtn">📲 ثبّت تطبيق الأدمن</button>
+<div class="tabs">
+<button class="active" onclick="show('products',this)">المنتجات</button>
+<button onclick="show('cats',this)">الأقسام</button>
+<button onclick="show('orders',this)">الطلبات</button>
+<button onclick="show('users',this)">الزباين</button>
+<button onclick="show('codes',this)">أكواد الخصم</button>
+<button onclick="show('settings',this)">الإعدادات</button>
+</div>
+
+<div id="products">
+<h3>أضف منتج جديد</h3>
+<input id="pName" placeholder="اسم المنتج - مثال: جاكيت شتوي">
+<input id="pPrice" type="number" placeholder="السعر بالليرة - مثال: 250000">
+<input id="pImage" placeholder="رابط صورة المنتج">
+<input id="pDesc" placeholder="وصف المنتج">
+<select id="pCat"><option value="">اختر القسم</option></select>
+<button onclick="addProduct()">إضافة المنتج ✅</button>
+<div id="pList"></div>
+</div>
+
+<div id="cats" style="display:none">
+<h3>أضف قسم</h3>
+<input id="cName" placeholder="اسم القسم - مثال: رجالي، نسائي، أطفال">
+<button onclick="addCat()">إضافة قسم</button>
+<div id="cList"></div>
+</div>
+
+<div id="orders" style="display:none"><div id="oList"></div></div>
+<div id="users" style="display:none"><div id="uList"></div></div>
+
+<div id="codes" style="display:none">
+<h3>كود خصم جديد</h3>
+<input id="codeName" placeholder="الكود - مثال: AHMED10">
+<input id="codeVal" type="number" placeholder="قيمة الخصم - مثال: 10">
+<select id="codeType"><option value="percent">نسبة %</option><option value="fixed">مبلغ ثابت</option></select>
+<button onclick="addCode()">إضافة كود</button>
+<div id="codeList"></div>
+</div>
+
+<div id="settings" style="display:none">
+<h3>إعدادات المتجر</h3>
+<input id="sWhatsapp" placeholder="رقم الواتساب للطلبات - 0934908034">
+<input id="sName" placeholder="اسم المتجر - VELMORA">
+<button onclick="saveSettings()">حفظ الإعدادات</button>
+</div>
+
+<script>
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js'); }
+let deferredPrompt; window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredPrompt=e; document.getElementById('installBtn').style.display='block'; });
+document.getElementById('installBtn').onclick = ()=>{ if(deferredPrompt){ deferredPrompt.prompt(); } };
+
+var firebaseConfig = {
+  apiKey: "AIzaSyAvaNwVBIanMgAKQZYbYUw_V2t1P4m7CRE",
+  authDomain: "shehabi-9c0e9.firebaseapp.com",
+  databaseURL: "https://shehabi-9c0e9-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "shehabi-9c0e9",
+  storageBucket: "shehabi-9c0e9.firebasestorage.app",
+  messagingSenderId: "672406584931",
+  appId: "1:672406584931:web:9772fdb34f06541b6a8256"
+};
+firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
+function show(id,btn){
+  ['products','cats','orders','users','codes','settings'].forEach(x=>document.getElementById(x).style.display = x==id?'block':'none');
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+}
+function addProduct(){
+  var name=document.getElementById('pName').value;
+  var price=parseInt(document.getElementById('pPrice').value||0);
+  var image=document.getElementById('pImage').value;
+  var desc=document.getElementById('pDesc').value;
+  var cat=document.getElementById('pCat').value;
+  if(!name||!price){ alert('حط الاسم والسعر'); return; }
+  db.ref('products').push({name:name,price:price,image:image,desc:desc,category:cat,createdAt:Date.now()});
+  alert('تم ✅'); document.getElementById('pName').value=''; document.getElementById('pPrice').value='';
+}
+function addCat(){
+  var n=document.getElementById('cName').value; if(!n) return;
+  db.ref('categories').push({name:n}); alert('تم ✅'); document.getElementById('cName').value='';
+}
+function addCode(){
+  var c=document.getElementById('codeName').value.trim();
+  var v=parseInt(document.getElementById('codeVal').value||0);
+  var t=document.getElementById('codeType').value;
+  if(!c) return; db.ref('discountCodes/'+c).set({value:v,type:t}); alert('تم ✅');
+}
+function saveSettings(){
+  db.ref('settings').set({whatsapp:document.getElementById('sWhatsapp').value, storeName:document.getElementById('sName').value});
+  alert('تم حفظ ✅');
+}
+db.ref('categories').on('value', s=>{
+  var cats=s.val()||{}; var h=''; var sel='<option value="">اختر القسم</option>';
+  Object.keys(cats).forEach(k=>{ h+='<div class="card">'+cats[k].name+' <button onclick="db.ref(\'categories/'+k+'\').remove()">حذف</button></div>'; sel+='<option value="'+k+'">'+cats[k].name+'</option>'; });
+  document.getElementById('cList').innerHTML=h; document.getElementById('pCat').innerHTML=sel;
+});
+db.ref('products').on('value', s=>{
+  var ps=s.val()||{}; var h='';
+  Object.keys(ps).forEach(k=>{ h+='<div class="card"><img src="'+(ps[k].image||'')+'"><b>'+ps[k].name+'</b> - '+ps[k].price+' ل.س <br><button onclick="db.ref(\'products/'+k+'\').remove()">حذف</button></div>'; });
+  document.getElementById('pList').innerHTML=h;
+});
+db.ref('orders').on('value', s=>{
+  var os=s.val()||{}; var h='';
+  Object.keys(os).reverse().forEach(k=>{ var o=os[k]; h+='<div class="card"><b>'+o.customerName+'</b> - '+o.customerPhone+'<br>'+o.address+'<br>'+(o.items||[]).map(i=>i.name+' x'+i.qty).join(', ')+'<br><b>الإجمالي: '+o.total+'</b> - الحالة: '+o.status+'<br><button onclick="db.ref(\'orders/'+k+'/status\').set(\'done\')">تم ✅</button> <button onclick="db.ref(\'orders/'+k+'\').remove()">حذف</button></div>'; });
+  document.getElementById('oList').innerHTML=h||'لا يوجد طلبات';
+});
+db.ref('users').on('value', s=>{
+  var us=s.val()||{}; var h='';
+  Object.keys(us).forEach(k=>{ var u=us[k]; h+='<div class="card">'+(u.firstName||'')+' '+(u.lastName||'')+' - '+u.contact+'</div>'; });
+  document.getElementById('uList').innerHTML=h;
+});
+db.ref('discountCodes').on('value', s=>{
+  var cs=s.val()||{}; var h='';
+  Object.keys(cs).forEach(k=>{ h+='<div class="card">'+k+' - '+cs[k].value+' '+(cs[k].type=='percent'?'%':'ل.س')+' <button onclick="db.ref(\'discountCodes/'+k+'\').remove()">حذف</button></div>'; });
+  document.getElementById('codeList').innerHTML=h;
+});
+db.ref('settings').once('value', s=>{ var st=s.val()||{}; document.getElementById('sWhatsapp').value=st.whatsapp||'0934908034'; document.getElementById('sName').value=st.storeName||'VELMORA'; });
+</script>
+</body>
+</html>
