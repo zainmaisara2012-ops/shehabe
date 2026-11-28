@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELMORA | فيلمورا</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+*{box-sizing:border-box;font-family:system-ui}body{margin:0;background:#0f0f0f;color:#fff}header{background:#000;padding:15px;text-align:center;position:sticky;top:0;z-index:10}header h1{margin:0;letter-spacing:5px;color:#d4af37}header p{margin:5px 0;color:#aaa}.top{display:flex;gap:10px;padding:12px;justify-content:center;flex-wrap:wrap}button,input,select{padding:10px;border-radius:10px;border:1px solid #333;background:#1a1a1a;color:#fff}button{background:#d4af37;color:#000;font-weight:700;border:none;cursor:pointer}.cats{display:flex;gap:8px;overflow:auto;padding:0 12px}.cats button{background:#222;color:#fff}.cats button.active{background:#d4af37;color:#000}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:12px}.card{background:#1a1a1a;border-radius:15px;overflow:hidden}.card img{width:100%;height:180px;object-fit:cover}.card div{padding:10px}.price{color:#d4af37;font-weight:800}.cartBtn{position:fixed;bottom:20px;left:20px;right:20px;background:#d4af37;color:#000;padding:15px;border-radius:15px;text-align:center;font-weight:800;cursor:pointer;z-index:20}.modal{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:flex-end}.modal.open{display:flex}.box{background:#1a1a1a;width:100%;max-height:85vh;overflow:auto;padding:16px;border-radius:20px 20px 0 0}.row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0}.qty button{padding:5px 10px}.hidden{display:none}
+</style>
+</head>
+<body>
+<header><h1>VELMORA</h1><p>فيلمورا - أناقة تليق بك</p></header>
+<div class="top">
+<input id="search" placeholder="دور على منتج...">
+<select id="sort"><option value="">ترتيب</option><option value="low">الأرخص</option><option value="high">الأغلى</option></select>
+<button onclick="openLogin()">دخول / حسابي</button>
+</div>
+<div class="cats" id="cats"></div>
+<div class="grid" id="grid"></div>
+<div class="cartBtn" onclick="openCart()">🛒 السلة - <span id="cartCount">0</span> منتج | <span id="cartTotal">0</span> ل.س</div>
+
+<div class="modal" id="cartModal"><div class="box">
+<h3>سلتك</h3><div id="cartItems"></div>
+<input id="custName" placeholder="اسمك الكامل - مثال: احمد شهابي">
+<input id="custPhone" placeholder="رقمك - مثال: 0934908034">
+<input id="custAddress" placeholder="عنوانك بالتفصيل - حلب، الحي، الشارع...">
+<input id="discount" placeholder="كود خصم (اختياري)">
+<button style="width:100%;margin-top:10px" onclick="checkout()">تأكيد الطلب واتساب ✅</button>
+<button style="width:100%;margin-top:8px;background:#333;color:#fff" onclick="closeCart()">إغلاق</button>
+</div></div>
+
+<div class="modal" id="loginModal"><div class="box">
+<h3>دخول</h3>
+<input id="loginName" placeholder="اسمك - احمد شهابي" style="width:100%;margin-bottom:8px">
+<input id="loginPhone" placeholder="رقمك - 0934908034" style="width:100%;margin-bottom:8px">
+<button style="width:100%" onclick="doLogin()">دخول</button>
+<p id="loginMsg" style="color:#d4af37"></p>
+<button style="width:100%;background:#333;color:#fff" onclick="closeLogin()">إغلاق</button>
+</div></div>
+
+<script>
+var firebaseConfig = {
+  apiKey: "AIzaSyAvaNwVBIanMgAKQZYbYUw_V2t1P4m7CRE",
+  authDomain: "shehabi-9c0e9.firebaseapp.com",
+  databaseURL: "https://shehabi-9c0e9-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "shehabi-9c0e9",
+  storageBucket: "shehabi-9c0e9.firebasestorage.app",
+  messagingSenderId: "672406584931",
+  appId: "1:672406584931:web:9772fdb34f06541b6a8256"
+};
+firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
+var products = {}, cats = {}, cart = {}, activeCat = 'all', settings = {};
+
+db.ref('settings').on('value', s=>{ settings = s.val()||{}; });
+db.ref('categories').on('value', s=>{ cats = s.val()||{}; renderCats(); });
+db.ref('products').on('value', s=>{ products = s.val()||{}; render(); });
+
+function renderCats(){
+  var h = '<button class="'+(activeCat=='all'?'active':'')+'" onclick="setCat(\'all\')">الكل</button>';
+  Object.keys(cats).forEach(k=>{ h += '<button class="'+(activeCat==k?'active':'')+'" onclick="setCat(\''+k+'\')">'+(cats[k].name||k)+'</button>'; });
+  document.getElementById('cats').innerHTML = h;
+}
+function setCat(c){ activeCat=c; renderCats(); render(); }
+function render(){
+  var q = (document.getElementById('search').value||'').toLowerCase();
+  var sort = document.getElementById('sort').value;
+  var list = Object.keys(products).map(k=>{ var p=products[k]; p._id=k; return p; }).filter(p=>{
+    if(activeCat!='all' && p.category!=activeCat) return false;
+    if(q && !((p.name||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  if(sort=='low') list.sort((a,b)=>a.price-b.price);
+  if(sort=='high') list.sort((a,b)=>b.price-a.price);
+  var h='';
+  list.forEach(p=>{
+    h += '<div class="card"><img src="'+(p.image||'https://via.placeholder.com/400')+'"><div><b>'+p.name+'</b><br><span style="color:#aaa;font-size:13px">'+(p.desc||'')+'</span><div class="row"><span class="price">'+p.price+' ل.س</span><button onclick="addToCart(\''+p._id+'\')">أضف +</button></div></div></div>';
+  });
+  document.getElementById('grid').innerHTML = h || '<p style="text-align:center;padding:20px">لا يوجد منتجات بعد، أضفها من لوحة التحكم</p>';
+}
+document.getElementById('search').oninput = render;
+document.getElementById('sort').onchange = render;
+function addToCart(id){ cart[id]=(cart[id]||0)+1; updateCart(); }
+function updateCart(){
+  var c=0,t=0; Object.keys(cart).forEach(id=>{ c+=cart[id]; if(products[id]) t+=products[id].price*cart[id]; });
+  document.getElementById('cartCount').innerText=c;
+  document.getElementById('cartTotal').innerText=t;
+}
+function openCart(){
+  var h=''; Object.keys(cart).forEach(id=>{
+    var p=products[id]; if(!p) return;
+    h+='<div class="row"><span>'+p.name+'</span><span class="qty"><button onclick="chg(\''+id+'\',-1)">-</button> '+cart[id]+' <button onclick="chg(\''+id+'\',1)">+</button></span><span>'+(p.price*cart[id])+'</span></div>';
+  });
+  document.getElementById('cartItems').innerHTML = h || 'السلة فاضية';
+  document.getElementById('cartModal').classList.add('open');
+}
+function chg(id,d){ cart[id]+=d; if(cart[id]<=0) delete cart[id]; updateCart(); openCart(); }
+function closeCart(){ document.getElementById('cartModal').classList.remove('open'); }
+function openLogin(){ document.getElementById('loginModal').classList.add('open'); }
+function closeLogin(){ document.getElementById('loginModal').classList.remove('open'); }
+function doLogin(){
+  var n=document.getElementById('loginName').value.trim();
+  var ph=document.getElementById('loginPhone').value.trim();
+  if(!n||!ph){ document.getElementById('loginMsg').innerText='حط اسمك ورقمك'; return; }
+  db.ref('users').once('value', s=>{
+    var users=s.val()||{}; var found=null;
+    Object.keys(users).forEach(k=>{ var u=users[k]; if((u.contact==ph) || ((u.firstName+' '+u.lastName).trim()==n)) found=u; });
+    if(found){ document.getElementById('loginMsg').innerText='أهلا فيك '+n+' ✅'; document.getElementById('custName').value=n; document.getElementById('custPhone').value=ph; setTimeout(closeLogin,800); }
+    else {
+      db.ref('users').push({firstName:n,lastName:'',contact:ph,contactType:'whatsapp',createdAt:Date.now()});
+      document.getElementById('loginMsg').innerText='تم إنشاء حسابك ✅ أهلا فيك';
+      document.getElementById('custName').value=n; document.getElementById('custPhone').value=ph;
+      setTimeout(closeLogin,800);
+    }
+  });
+}
+function checkout(){
+  var name=document.getElementById('custName').value.trim();
+  var phone=document.getElementById('custPhone').value.trim();
+  var addr=document.getElementById('custAddress').value.trim();
+  var code=document.getElementById('discount').value.trim();
+  if(!name||!phone||!addr){ alert('حط اسمك ورقمك وعنوانك'); return; }
+  if(Object.keys(cart).length==0){ alert('السلة فاضية'); return; }
+  var items=[]; var total=0;
+  Object.keys(cart).forEach(id=>{ var p=products[id]; items.push({id:id,name:p.name,price:p.price,qty:cart[id]}); total+=p.price*cart[id]; });
+  var disc=0;
+  db.ref('discountCodes/'+code).once('value', s=>{
+    if(code && s.val()){ disc = s.val().value||0; if(s.val().type=='percent') total = total - (total*disc/100); else total = total - disc; }
+    var order={customerName:name,customerPhone:phone,address:addr,items:items,total:total,discountCode:code,status:'new',createdAt:Date.now()};
+    db.ref('orders').push(order);
+    var msg='طلب جديد من VELMORA%0Aالاسم: '+name+'%0Aالرقم: '+phone+'%0Aالعنوان: '+addr+'%0A---%0A'+items.map(i=>i.name+' x'+i.qty+' = '+(i.price*i.qty)).join('%0A')+'%0Aالإجمالي: '+total+' ل.س';
+    var wa = (settings.whatsapp||'0934908034').replace(/\D/g,'');
+    if(wa.startsWith('0')) wa='963'+wa.slice(1);
+    window.open('https://wa.me/'+wa+'?text='+msg,'_blank');
+    cart={}; updateCart(); closeCart(); alert('تم إرسال طلبك ✅');
+  });
+}
+</script>
+</body>
+  </html>
